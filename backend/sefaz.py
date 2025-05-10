@@ -15,7 +15,7 @@ def buscar_dados_sefaz(cnpj):
             try:
                 return response.json()
             except ValueError:
-                return {"erro": "RJSON inválido"}
+                return {"erro": "JSON inválido"}
         else:
             return {"erro": f"Erro HTTP: {response.status_code}"}
     except requests.RequestException as e:
