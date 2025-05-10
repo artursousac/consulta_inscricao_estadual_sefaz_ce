@@ -1,29 +1,35 @@
-from playwright.sync_api import sync_playwright
+import requests
+from bs4 import BeautifulSoup
 import re
 
-from telegram import enviar_dados_telegram
-def buscar_dados_sefaz(cnpj):
-    # Realiza o tratamento do CNPJ, retirando . - /
-    cnpj = re.sub(r'[.\-\/\s]', '', cnpj)
+def limpar_cnpj(cnpj):
+    return re.sub(r'[.\-\/\s]', '', cnpj)
 
-    # Define a URL da Chamada HTTP
+def buscar_inscricao_estadual(cnpj):
+    cnpj = limpar_cnpj(cnpj)
     url = f"https://consultapublica.sefaz.ce.gov.br/sintegra/consultar?tipdocumento=2&numcnpjcgf={cnpj}"
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+    try:
+        response = requests.get(url, timeout=10)
+        soup = BeautifulSoup(response.text, "html.parser")
 
-        page.goto(url)
-        page.wait_for_timeout(5000)
+        tabela = soup.find("table", id="dadossintegra")
+        if not tabela:
+            return {"erro": "Tabela 'dadossintegra' não encontrada"}
 
-        try:
-            ie = page.locator('table#dadossintegra td').nth(1).text_content()
+        # Agora pega especificamente o tbody
+        tbody = tabela.find("tbody")
+        linha = tbody.find("tr") if tbody else None
+        if not linha:
+            return {"erro": "Linha de dados não encontrada"}
 
+        colunas = linha.find_all("td")
+        if len(colunas) >= 3:
             return {
-                "inscricao_estadual": ie
+                "inscricao_estadual": colunas[1].text.strip()
             }
-        except Exception as e:
-            return {"erro": f"Erro ao localizar dados: {e}"}
-        finally:
-            browser.close()
+        else:
+            return {"erro": "Colunas de dados não encontradas"}
 
+    except Exception as e:
+        return {"erro": f"Erro ao processar: {str(e)}"}
