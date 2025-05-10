@@ -1,6 +1,6 @@
-import http
+from playwright.sync_api import sync_playwright
 import re
-import requests
+
 from telegram import enviar_dados_telegram
 def buscar_dados_sefaz(cnpj):
     # Realiza o tratamento do CNPJ, retirando . - /
@@ -9,15 +9,21 @@ def buscar_dados_sefaz(cnpj):
     # Define a URL da Chamada HTTP
     url = f"https://consultapublica.sefaz.ce.gov.br/sintegra/consultar?tipdocumento=2&numcnpjcgf={cnpj}"
 
-    try:
-        response = requests.get(url, timeout=10)  # Adiciona timeout por segurança
-        if response.status_code == 200:
-            try:
-                return response.json()
-            except ValueError:
-                return {"erro": "JSON inválido"}
-        else:
-            return {"erro": f"Erro HTTP: {response.status_code}"}
-    except requests.RequestException as e:
-        return {"erro": f"Falha na requisição: {str(e)}"}
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        page.goto(url)
+        page.wait_for_timeout(5000)
+
+        try:
+            ie = page.locator('table#dadossintegra td').nth(1).text_content()
+
+            return {
+                "inscricao_estadual": ie
+            }
+        except Exception as e:
+            return {"erro": f"Erro ao localizar dados: {e}"}
+        finally:
+            browser.close()
 
